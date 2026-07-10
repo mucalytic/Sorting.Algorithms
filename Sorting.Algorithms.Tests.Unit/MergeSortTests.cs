@@ -34,106 +34,198 @@ public class MergeSortTests
             }
             return merged;
         }
+
+        public static T[] MergeSortOptimized<T>(T[] items) where T : IComparable<T>
+        {
+            var result = (T[])items.Clone();
+            if (items.Length <= 1) return result;
+            var scratch = (T[])items.Clone();
+            SortRange(scratch, result, 0, items.Length);
+            return result;
+        }
+
+        // Sorts the range [lo, hi) into destination, using source as scratch space.
+        // Both arrays must hold the same values in [lo, hi) on entry; their roles
+        // swap at each level of recursion so no per-level copying is needed.
+        private static void SortRange<T>(T[] source, T[] destination, int lo, int hi) where T : IComparable<T>
+        {
+            if (hi - lo <= 1) return;
+            var middle = (lo + hi) / 2;
+            SortRange(destination, source, lo, middle);
+            SortRange(destination, source, middle, hi);
+            var i = lo;
+            var j = middle;
+            for (var k = lo; k < hi; k++)
+            {
+                destination[k] = j >= hi || (i < middle && source[i].CompareTo(source[j]) <= 0)
+                    ? source[i++]
+                    : source[j++];
+            }
+        }
     }
 
-    [Fact]
-    public void MergeSort_SortsAnUnsortedArray()
+    public enum Variant
+    {
+        Simple,
+        Optimized
+    }
+
+    private static T[] Sort<T>(Variant variant, T[] items) where T : IComparable<T> => variant switch
+    {
+        Variant.Simple => Internal.MergeSort(items),
+        Variant.Optimized => Internal.MergeSortOptimized(items),
+        _ => throw new ArgumentOutOfRangeException(nameof(variant))
+    };
+
+    [Theory]
+    [InlineData(Variant.Simple)]
+    [InlineData(Variant.Optimized)]
+    public void MergeSort_SortsAnUnsortedArray(Variant variant)
     {
         var items = new[] { 5, 3, 8, 1, 9, 2, 7, 4, 6 };
 
-        var sorted = Internal.MergeSort(items);
+        var sorted = Sort(variant, items);
 
         sorted.Should().Equal(1, 2, 3, 4, 5, 6, 7, 8, 9);
     }
 
-    [Fact]
-    public void MergeSort_ReturnsAnEmptyArrayUnchanged()
+    [Theory]
+    [InlineData(Variant.Simple)]
+    [InlineData(Variant.Optimized)]
+    public void MergeSort_ReturnsAnEmptyArrayUnchanged(Variant variant)
     {
         var items = Array.Empty<int>();
 
-        var sorted = Internal.MergeSort(items);
+        var sorted = Sort(variant, items);
 
         sorted.Should().BeEmpty();
     }
 
-    [Fact]
-    public void MergeSort_ReturnsASingleElementArrayUnchanged()
+    [Theory]
+    [InlineData(Variant.Simple)]
+    [InlineData(Variant.Optimized)]
+    public void MergeSort_ReturnsASingleElementArrayUnchanged(Variant variant)
     {
         var items = new[] { 42 };
 
-        var sorted = Internal.MergeSort(items);
+        var sorted = Sort(variant, items);
 
         sorted.Should().Equal(42);
     }
 
-    [Fact]
-    public void MergeSort_LeavesAnAlreadySortedArraySorted()
+    [Theory]
+    [InlineData(Variant.Simple)]
+    [InlineData(Variant.Optimized)]
+    public void MergeSort_LeavesAnAlreadySortedArraySorted(Variant variant)
     {
         var items = new[] { 1, 2, 3, 4, 5 };
 
-        var sorted = Internal.MergeSort(items);
+        var sorted = Sort(variant, items);
 
         sorted.Should().Equal(1, 2, 3, 4, 5);
     }
 
-    [Fact]
-    public void MergeSort_SortsAReverseSortedArray()
+    [Theory]
+    [InlineData(Variant.Simple)]
+    [InlineData(Variant.Optimized)]
+    public void MergeSort_SortsAReverseSortedArray(Variant variant)
     {
         var items = new[] { 5, 4, 3, 2, 1 };
 
-        var sorted = Internal.MergeSort(items);
+        var sorted = Sort(variant, items);
 
         sorted.Should().Equal(1, 2, 3, 4, 5);
     }
 
-    [Fact]
-    public void MergeSort_HandlesDuplicateElements()
+    [Theory]
+    [InlineData(Variant.Simple)]
+    [InlineData(Variant.Optimized)]
+    public void MergeSort_HandlesDuplicateElements(Variant variant)
     {
         var items = new[] { 3, 1, 3, 2, 1, 2, 3 };
 
-        var sorted = Internal.MergeSort(items);
+        var sorted = Sort(variant, items);
 
         sorted.Should().Equal(1, 1, 2, 2, 3, 3, 3);
     }
 
-    [Fact]
-    public void MergeSort_HandlesNegativeNumbers()
+    [Theory]
+    [InlineData(Variant.Simple)]
+    [InlineData(Variant.Optimized)]
+    public void MergeSort_HandlesNegativeNumbers(Variant variant)
     {
         var items = new[] { 3, -1, 0, -5, 2 };
 
-        var sorted = Internal.MergeSort(items);
+        var sorted = Sort(variant, items);
 
         sorted.Should().Equal(-5, -1, 0, 2, 3);
     }
 
-    [Fact]
-    public void MergeSort_SortsStrings()
+    [Theory]
+    [InlineData(Variant.Simple)]
+    [InlineData(Variant.Optimized)]
+    public void MergeSort_SortsStrings(Variant variant)
     {
         var items = new[] { "banana", "apple", "cherry" };
 
-        var sorted = Internal.MergeSort(items);
+        var sorted = Sort(variant, items);
 
         sorted.Should().Equal("apple", "banana", "cherry");
     }
 
-    [Fact]
-    public void MergeSort_DoesNotMutateTheInputArray()
+    [Theory]
+    [InlineData(Variant.Simple)]
+    [InlineData(Variant.Optimized)]
+    public void MergeSort_DoesNotMutateTheInputArray(Variant variant)
     {
         var items = new[] { 3, 1, 2 };
 
-        Internal.MergeSort(items);
+        Sort(variant, items);
 
         items.Should().Equal(3, 1, 2);
     }
 
-    [Fact]
-    public void MergeSort_SortsALargeRandomArray()
+    // Compares by Key only, so Tag reveals whether equal elements kept their original order.
+    private sealed record Keyed(int Key, string Tag) : IComparable<Keyed>
+    {
+        public int CompareTo(Keyed? other) => Key.CompareTo(other!.Key);
+    }
+
+    [Theory]
+    [InlineData(Variant.Simple)]
+    [InlineData(Variant.Optimized)]
+    public void MergeSort_IsStable(Variant variant)
+    {
+        var items = new[] { new Keyed(2, "a"), new Keyed(1, "b"), new Keyed(2, "c"), new Keyed(1, "d") };
+
+        var sorted = Sort(variant, items);
+
+        sorted.Select(k => k.Tag).Should().Equal("b", "d", "a", "c");
+    }
+
+    [Theory]
+    [InlineData(Variant.Simple)]
+    [InlineData(Variant.Optimized)]
+    public void MergeSort_SortsALargeRandomArray(Variant variant)
     {
         var random = new Random(1234);
         var items = Enumerable.Range(0, 10_000).Select(_ => random.Next()).ToArray();
 
-        var sorted = Internal.MergeSort(items);
+        var sorted = Sort(variant, items);
 
         sorted.Should().Equal(items.OrderBy(x => x));
+    }
+
+    [Theory]
+    [InlineData(Variant.Simple)]
+    [InlineData(Variant.Optimized)]
+    public void MergeSort_BothVariantsProduceIdenticalOutput(Variant variant)
+    {
+        var random = new Random(5678);
+        var items = Enumerable.Range(0, 1_000).Select(_ => random.Next(0, 100)).ToArray();
+
+        var sorted = Sort(variant, items);
+
+        sorted.Should().Equal(Internal.MergeSort(items));
     }
 }
